@@ -15,12 +15,12 @@ k=100
 
 awsJar=spark_2.11-0.1.jar
 aws.input=workFold/input
-aws.output=output
+aws.output=output_sbt
 aws.bucket.name=michaelyangcs
 aws.release.label=emr-5.11.1
 aws.instance.type=m4.large
-aws.num.nodes=11
-aws.log.dir=log
+aws.num.nodes=19
+aws.log.dir=log_sbt
 
 awsoutput="s3://michaelyangcs/workFold/output10"
 localout="/Users/yzh/Desktop/cour/parallel/RankOutput"

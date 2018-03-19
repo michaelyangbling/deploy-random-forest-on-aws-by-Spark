@@ -2,10 +2,10 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.storage.StorageLevel._
 import java.io._
 import org.apache.spark.broadcast.Broadcast
-//this method store graph as rdd but distribute Pageranks as map to all nodes,
-//optimize running time but use too much memory
+//this method store graph and PageRanksas rdd,
+//optimized for memory but use a little more time
 object TestScala {
-  def getPairRdd(in:Array[String]) :(String,Set[String])= {
+  def getPairRdd(in:Array[String]) :(String,Set[String])= { //transform into ( pageName,set(links) ) (String,Set[String])
     if (in.length == 1)
       (in(0), Set())
     else {
@@ -22,7 +22,7 @@ object TestScala {
   def addDangNodes(in: String):(String,Set[String])={
     (in, Set())
   }
-  def giveRank(in:(Set[String],Double)):Array[(String,Double)]={
+  def giveRank(in:(Set[String],Double)):Array[(String,Double)]={//for updating pageRank
     val out=new Array[(String,Double)](in._1.size)
     var index=0
     val outRank=in._2/in._1.size
@@ -34,8 +34,8 @@ object TestScala {
   }
   def main(args: Array[String]):Unit= {
     println("starting")
-    val conf = new SparkConf().setMaster("local").setAppName("My App")  //for local run&debug
-    //val conf = new SparkConf().setAppName("My App") //for AWS run
+    //val conf = new SparkConf().setMaster("local").setAppName("My App")  //for local run&debug
+    val conf = new SparkConf().setAppName("My App") //for AWS run
     val sc = new SparkContext(conf)
     val textFile = sc.textFile(args(0))
     var pageLinksPair = textFile.map(webParser.parse)
@@ -50,11 +50,11 @@ object TestScala {
     println("data-clean finished")
     //cleanedData is the graph
     val numPages=sc.broadcast(cleanedData.count())
-    var PR=cleanedData.map(x=>(x._1,1.toDouble/numPages.value)).persist()//initial pageRank: Rdd (String,double)
-    var PR0=cleanedData.map(x=>(x._1,0.toDouble)).persist()
+    var PR=cleanedData.map(x=>(x._1,1.toDouble/numPages.value)).persist()//initial pageRank: pairRdd (String,double)
+    var PR0=cleanedData.map(x=>(x._1,0.toDouble)).persist() //PR0 is used for  merge all pageRanks emitted : pairRdd (String,double)
     //the map can fit into the memory
     val randP=sc.broadcast(0.15/numPages.value) //here define probability of random jumping to a website as 0.15
-    var dangNodes=cleanedData.filter(x=>x._2.isEmpty).map(x=>(x._1,0)).persist()//dangling nodes' RDD:(String,int)
+    var dangNodes=cleanedData.filter(x=>x._2.isEmpty).map(x=>(x._1,0)).persist()//dangling nodes' pairDD:(String,int)
     val numDang=dangNodes.count()
     //persist is to keep the RDD for future repeated use
     var dangWeight:Double=0
@@ -66,6 +66,7 @@ object TestScala {
         dangWeight=0.toDouble
       else
         dangWeight = dangNodes.join(PR).map(x=>x._2._2).aggregate(0.toDouble)((x, y) => x + y, (x2, y2) => x2 + y2) / numPages.value
+        //dangWeight is to accumulate all influences emitted from dangling nodes
       broadDangWeight=sc.broadcast(dangWeight)
       PR = cleanedData.join(PR) //(String, (Set[String],Double))
         .flatMap(x=>giveRank(x._2))  //Rdd (String,Double)
@@ -97,6 +98,7 @@ object TestScala {
     }
     println("all done")
 
+    //just some things for debugging...
     //println(c)
     //cleanedData.saveAsTextFile(args(1));
 
