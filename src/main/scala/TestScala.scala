@@ -1,102 +1,96 @@
+//standalone test: sbt package
+//make -f makefile.mk standalone
+//head -50000 /Users/yzh/Desktop/cour/parallel/brain/L6_1_965381.csv >> sample2
 import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.storage.StorageLevel._
-import java.io._
-import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.tree.RandomForest
+import org.apache.spark.mllib.tree.model.RandomForestModel
+import org.apache.spark.mllib.util.MLUtils
+import org.apache.spark.sql.SparkSession
 //this method store graph and PageRanksas rdd,
 //optimized for memory but use a little more time
 object TestScala {
-  def getPairRdd(in:Array[String]) :(String,Set[String])= { //transform into ( pageName,set(links) ) (String,Set[String])
-    if (in.length == 1)
-      (in(0), Set())
-    else {
-      var set: Set[String] = Set()
-      var index = 1
-      while (index <= in.length - 1) {
-        set = set + in(index)
-        index = index + 1
-      }
-      (in(0), set)
-    }
-  }
 
-  def addDangNodes(in: String):(String,Set[String])={
-    (in, Set())
-  }
-  def giveRank(in:(Set[String],Double)):Array[(String,Double)]={//for updating pageRank
-    val out=new Array[(String,Double)](in._1.size)
-    var index=0
-    val outRank=in._2/in._1.size
-    for(each<-in._1){
-      out(index)=(each, outRank)
-      index=index+1
-    }
-    out
-  }
   def main(args: Array[String]):Unit= {
-    println("starting")
-    //val conf = new SparkConf().setMaster("local").setAppName("My App")  //for local run&debug
-    val conf = new SparkConf().setAppName("My App") //for AWS run
+    val conf = new SparkConf().setMaster("local").setAppName("My App")  //for local run&debug
+    //val conf = new SparkConf().setAppName("My App") //for AWS run
     val sc = new SparkContext(conf)
-    val textFile = sc.textFile(args(0))
-    var pageLinksPair = textFile.map(webParser.parse)
-      .filter(array=>array.length!=0)//eliminate ill-formatted HTMLs
-      .map(getPairRdd).persist//convert to pairRDD : ( pageName,set(links) ) (String,Set[String])
-
-    //var setPages=pageLinksPair.countByKey().keySet.toSet //set of provided pages
-    //var broadcastSet=sc.broadcast(setPages)
-    var dangleRdd=pageLinksPair.flatMap(pair=>pair._2).map(addDangNodes)//filter and add dangling nodes
-    var cleanedData=dangleRdd.union(pageLinksPair).reduceByKey((x,y)=>x.++(y)).persist() //(String,Set[String])
-
-    println("data-clean finished")
-    //cleanedData is the graph
-    val numPages=sc.broadcast(cleanedData.count())
-    var PR=cleanedData.map(x=>(x._1,1.toDouble/numPages.value)).persist()//initial pageRank: pairRdd (String,double)
-    var PR0=cleanedData.map(x=>(x._1,0.toDouble)).persist() //PR0 is used for  merge all pageRanks emitted : pairRdd (String,double)
-    //the map can fit into the memory
-    val randP=sc.broadcast(0.15/numPages.value) //here define probability of random jumping to a website as 0.15
-    var dangNodes=cleanedData.filter(x=>x._2.isEmpty).map(x=>(x._1,0)).persist()//dangling nodes' pairDD:(String,int)
-    val numDang=dangNodes.count()
-    //persist is to keep the RDD for future repeated use
-    var dangWeight:Double=0
-    var broadDangWeight:Broadcast[Double]=sc.broadcast(dangWeight)
-    var i=1
-    while(i<=args(2).toInt) { // iterate pageRank algorithm
-      println("iterating")
-      if(numDang==0)
-        dangWeight=0.toDouble
-      else
-        dangWeight = dangNodes.join(PR).map(x=>x._2._2).aggregate(0.toDouble)((x, y) => x + y, (x2, y2) => x2 + y2) / numPages.value
-        //dangWeight is to accumulate all influences emitted from dangling nodes
-      broadDangWeight=sc.broadcast(dangWeight)
-      PR = cleanedData.join(PR) //(String, (Set[String],Double))
-        .flatMap(x=>giveRank(x._2))  //Rdd (String,Double)
-        .reduceByKey((x, y) => x + y).union(PR0).reduceByKey((x, y) => x + y)
-        .mapValues(y => (y + broadDangWeight.value) * 0.85 + randP.value).persist() //update PageRank
-      //
-      i = i + 1
+    val data = sc.textFile("/Users/yzh/Desktop/cour/parallel/brain/files")// Should be some file on your system
+    val splits = data.randomSplit(Array(0.7, 0.3))
+    val (trainingData, testData) = (splits(0), splits(1))
+//    val TrainingData=trainingData.map{record=>
+//      val features=record.slice(0,record.size-2).map(_.toDouble)
+//      val label=record(record.size-1).toInt
+//      LabeledPoint(label,Vectors.dense(features))
+//    }
+    val TrainingData = trainingData.map { line =>
+      val parts = line.split(',').map(_.toDouble)
+      LabeledPoint(parts.last.toInt, Vectors.dense(parts.init))
     }
-    println("page-rank finished")
-    val topPages=PR.sortBy(_._2,ascending=false).take(args(3).toInt) //take top k
-    pageLinksPair=null
-    dangleRdd=null
-    cleanedData=null
-    PR0=null
-    PR=null
-    dangNodes=null
-    println("top k finished--will get results")
-    try {
-      val pw = new PrintWriter(new File(args(1)))
-      for(each<-topPages)
-      {pw.write(each._1+"~~~~~~~   "+each._2.toString+"\n")}
-      pw.close
-    } catch {
-      case _: Throwable => {
-        for(each<-topPages){
-          println(each._1+"~~~~~~~   "+each._2.toString)
-        }
-      }
+    val TestingData = trainingData.map { line =>
+      val parts = line.split(',').map(_.toDouble)
+      LabeledPoint(parts.last.toInt, Vectors.dense(parts.init))
     }
-    println("all done")
+
+
+    //      val spark: SparkSession = SparkSession.builder.master("local").getOrCreate
+    //      val trainingDF=spark.createDataFrame(TrainingData)
+    //val sc = spark.sparkContext // Just used to create test RDDs
+    val numClasses = 2// Empty categoricalFeaturesInfo indicates all features are continuous.
+    val categoricalFeaturesInfo = Map[Int, Int]()
+    val numTrees =10 // Use more in practice.
+    val featureSubsetStrategy = "auto" // Let the algorithm choose.
+    val impurity = "gini"
+    val maxDepth = 4
+    val maxBins = 32
+    val model = RandomForest.trainClassifier(TrainingData, numClasses, categoricalFeaturesInfo, numTrees, featureSubsetStrategy, impurity, maxDepth, maxBins)
+
+    val Preds = TestingData.map { point =>
+      val prediction = model.predict(point.features)
+      prediction.toInt
+    }
+    Preds.coalesce(1).saveAsTextFile("target/output")
+//    val testErr = labelAndPreds.filter(r => r._1 != r._2).count.toDouble / TestingData.count()
+//    println("Test Error = " + testErr)
+//    println("Learned classification forest model:\n" + model.toDebugString)
+//
+//    // Save and load model
+//    model.save(sc, "target/tmp/myRandomForestClassificationModel")
+//    val sameModel = RandomForestModel.load(sc, "target/tmp/myRandomForestClassificationModel")
+//    sc.stop()
+//    println("starting")
+//    val conf = new SparkConf().setMaster("local").setAppName("My App")  //for local run&debug
+//    //val conf = new SparkConf().setAppName("My App") //for AWS run
+//    val sc = new SparkContext(conf)
+//
+//    // Load and parse the data file.
+//    val data = MLUtils.loadLibSVMFile(sc, "data/mllib/sample_libsvm_data.txt")
+//    // Split the data into training and test sets (30% held out for testing)
+//    val splits = data.randomSplit(Array(0.7, 0.3))
+//    val (trainingData, testData) = (splits(0), splits(1))
+//
+//    // Train a RandomForest model.
+//    // Empty categoricalFeaturesInfo indicates all features are continuous.
+//    val numClasses = 2
+//    val categoricalFeaturesInfo = Map[Int, Int]()
+//    val numTrees = 3 // Use more in practice.
+//    val featureSubsetStrategy = "auto" // Let the algorithm choose.
+//    val impurity = "gini"
+//    val maxDepth = 4
+//    val maxBins = 32
+//
+//    val model = RandomForest.trainClassifier(trainingData, numClasses, categoricalFeaturesInfo,
+//      numTrees, featureSubsetStrategy, impurity, maxDepth, maxBins)
+//
+//    // Evaluate model on test instances and compute test error
+//    val labelAndPreds = testData.map { point =>
+//      val prediction = model.predict(point.features)
+//      (point.label, prediction)
+//    }
+//    val testErr = labelAndPreds.filter(r => r._1 != r._2).count.toDouble / testData.count()
+//    println("Test Error = " + testErr)
+//    println("Learned classification forest model:\n" + model.toDebugString)
 
     //just some things for debugging...
     //println(c)
