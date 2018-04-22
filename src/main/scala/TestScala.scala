@@ -1,4 +1,6 @@
 //standalone test: sbt package
+//data not clean in training
+//data not clean in testing set
 //make -f makefile.mk standalone
 //head -50000 /Users/yzh/Desktop/cour/parallel/brain/L6_1_965381.csv >> sample
 //bzip2 -k /Users/yzh/Desktop/cour/parallel/brain/sample2.csv
@@ -52,14 +54,14 @@ object TestScala {
     val TrainingData = train.map (cleanData).filter(filterData).map(line=>line(0))
 
 
-    def cleanData2(line:String): Array[LabeledPoint] = {
+    def cleanData2(line:String): LabeledPoint = {
       try {
-        val parts = line.split(',').map(_.toDouble)
-        Array(LabeledPoint(1, Vectors.dense(parts.init)))
+        val parts = line.split(',').init.map(_.toDouble)
+        LabeledPoint(1, Vectors.dense(parts))
       }
       catch{
         case _: Throwable => {
-          Array()
+          LabeledPoint(-1,Vectors.dense(1.0)) //wrong format
         }
       }
     }
@@ -78,20 +80,30 @@ object TestScala {
     val maxDepth = 4
     val maxBins = 32
     val model = RandomForest.trainClassifier(TrainingData, numClasses, categoricalFeaturesInfo, numTrees, featureSubsetStrategy, impurity, maxDepth, maxBins)
-    def predict(point:Array[LabeledPoint]):Int={
-      if (point.length!=0){
-        val prediction = model.predict(point(0).features)
+    println("finished training")
+    def predict(point:LabeledPoint):Int={
+      if (point.label==1){ //indicating right format
+        val prediction = model.predict(point.features)
         prediction.toInt}
       else
         0
     }
-    val Preds = TestingData.map(predict)
-    Preds.persist()
-    Preds.coalesce(1).saveAsTextFile(args(2))
-    println("num of 1 predicted")
-    println(Preds.collect().sum.toDouble)
-    println("num of test records")
-    println(Preds.count.toDouble)
+    val Preds = TestingData.map(predict).collect
+    println("finished prediction")
+    for (each<-Preds){
+      println(each)
+    }//write to stdout of master node...
+    //in aws : should be containers -> first file
+//    Preds.persist()
+      //Preds.coalesce(1).saveAsTextFile(args(2))
+      //saveAsTextFile and save( model) bugs..duplicate write
+//    println("num of 1 predicted")
+//    println(Preds.collect().sum.toDouble)
+//    println("num of test records")
+//    println(Preds.count.toDouble)
+//    model.save(sc, args(3))
+    //import org.apache.spark.mllib.tree.model.RandomForestModel
+    //val sameModel = RandomForestModel.load(sc, "/Users/yzh/Desktop/cour/parallel/brain/model")
 //    val testErr = labelAndPreds.filter(r => r._1 != r._2).count.toDouble / TestingData.count()
 //    println("Test Error = " + testErr)
 //    println("Learned classification forest model:\n" + model.toDebugString)

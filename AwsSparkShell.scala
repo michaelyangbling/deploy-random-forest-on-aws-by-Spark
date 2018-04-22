@@ -1,3 +1,4 @@
+//957649 test records
 //import org.apache.spark.{SparkConf, SparkContext}
 //import org.apache.spark.mllib.linalg.Vectors
 //import org.apache.spark.mllib.regression.LabeledPoint
@@ -59,3 +60,33 @@
 //  prediction.toInt
 //}
 //Preds.coalesce(1).saveAsTextFile("s3://michaelyangcs/outSmall")
+
+
+//console predict
+//import org.apache.spark.mllib.linalg.Vectors
+//import org.apache.spark.mllib.regression.LabeledPoint
+//import org.apache.spark.mllib.tree.model.RandomForestModel
+//val test = sc.textFile("s3://michaelyangcs/L6_5_new.csv")
+//def cleanData2(line:String): Array[LabeledPoint] = {
+//  try {
+//    val parts = line.split(',').init.map(_.toDouble)
+//    Array(LabeledPoint(1, Vectors.dense(parts)))
+//  }
+//  catch{
+//    case _: Throwable => {
+//      Array()
+//    }
+//  }
+//}
+//
+//val TestingData = test.map(cleanData2)
+//val model = RandomForestModel.load(sc, "s3://michaelyangcs/model")
+//def predict(point:Array[LabeledPoint]):Int={
+//  if (point.length!=0){
+//    val prediction = model.predict(point(0).features)
+//    prediction.toInt}
+//  else
+//    0
+//}
+//val Preds = TestingData.map(predict)
+//Preds.coalesce(1).saveAsTextFile("s3://michaelyangcs/out2")
