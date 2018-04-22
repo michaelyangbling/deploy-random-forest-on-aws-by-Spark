@@ -8,6 +8,8 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.tree.RandomForest
+import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.mllib.tree.model.RandomForestModel
 import org.apache.spark.mllib.tree.model.RandomForestModel
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.sql.SparkSession
@@ -32,26 +34,26 @@ object TestScala {
 //      val label=record(record.size-1).toInt
 //      LabeledPoint(label,Vectors.dense(features))
 //    }
-    def cleanData(line:String): Array[LabeledPoint] = {
+    def cleanData(line:String): LabeledPoint = {
       try {
         val parts = line.split(',').map(_.toDouble)
-        Array(LabeledPoint(parts.last.toInt, Vectors.dense(parts.init)))
+        LabeledPoint(parts.last.toInt, Vectors.dense(parts.init))
       }
       catch{
         case _: Throwable => {
-          Array()
+          LabeledPoint(-1, Vectors.dense(1.0))
         }
       }
     }
-    def filterData(in:Array[LabeledPoint]):Boolean={
-      if (in.length!=0)
+    def filterData(point : LabeledPoint):Boolean={
+      if (point.label != -1)
         true
       else {
         false
       }
     }
 
-    val TrainingData = train.map (cleanData).filter(filterData).map(line=>line(0))
+    val TrainingData = train.map (cleanData).filter(filterData)
 
 
     def cleanData2(line:String): LabeledPoint = {
@@ -73,23 +75,32 @@ object TestScala {
     //      val trainingDF=spark.createDataFrame(TrainingData)
     //val sc = spark.sparkContext // Just used to create test RDDs
     val numClasses = 2// Empty categoricalFeaturesInfo indicates all features are continuous.
-    val categoricalFeaturesInfo = Map[Int, Int]()
-    val numTrees =10 // Use more in practice.
+    val categoricalFeaturesInfo = Map[Int, Int]()//Tree 10  Depth 4
+    val numTrees =args(2).toInt // Use more in practice.
     val featureSubsetStrategy = "auto" // Let the algorithm choose.
     val impurity = "gini"
-    val maxDepth = 4
+    val maxDepth = args(3).toInt
     val maxBins = 32
     val model = RandomForest.trainClassifier(TrainingData, numClasses, categoricalFeaturesInfo, numTrees, featureSubsetStrategy, impurity, maxDepth, maxBins)
-    println("finished training")
+    //println("finished training")
+    val broadModel:Broadcast[RandomForestModel]=sc.broadcast(model)
     def predict(point:LabeledPoint):Int={
-      if (point.label==1){ //indicating right format
-        val prediction = model.predict(point.features)
-        prediction.toInt}//
+      if (point.label==1) { //indicating right format
+        try {
+          val prediction = broadModel.value.predict(point.features)
+          prediction.toInt
+        }
+        catch{
+          case _: Throwable => {
+            0 //wrong format
+          }
+        }
+      }//
       else
         0
     }
     val Preds = TestingData.map(predict).collect
-    println("finished prediction")
+    //println("finished prediction")
     for (each<-Preds){
       println(each)
     }//write to stdout of master node...

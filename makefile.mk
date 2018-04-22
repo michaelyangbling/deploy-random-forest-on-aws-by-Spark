@@ -5,10 +5,10 @@
 #for maven: mvn scala:run -DmainClass=TestScala
 spark="/Users/yzh/Desktop/cour/parallel/spark-2.3.0-bin-hadoop2.7"
 job.name=TestScala
-local.master=local[4]
+local.master=local[*]
 app.name=brain
 jar.name=/Users/yzh/IdeaProjects/mlSpark/target/scala-2.11/spark_2.11-0.1.jar
-pArgs="/Users/yzh/Desktop/cour/parallel/brain/files/sample1.csv copy.bz2" "/Users/yzh/Desktop/cour/parallel/brain/sample5.bz2" "/Users/yzh/Desktop/cour/parallel/brain/output3" "/Users/yzh/Desktop/cour/parallel/brain/model"
+pArgs="/Users/yzh/Desktop/cour/parallel/brain/files/sample1.csv copy.bz2" "/Users/yzh/Desktop/cour/parallel/brain/sample5.bz2" 10 4
 
 awsJar=spark_2.11-0.1.jar
 aws.inputTrain=train
@@ -17,9 +17,11 @@ aws.output=outputNo
 aws.bucket.name=michaelyangcs
 aws.release.label=emr-5.11.1
 aws.instance.type=m4.xlarge
-aws.num.nodes=9
-aws.log.dir=logStd
+aws.num.nodes=4
+aws.log.dir=logQuickLessMachine
 aws.model=model
+numTrees=13
+maxDepth=7
 
 awsoutput="s3://michaelyangcs/workFold/output10"
 localout="/Users/yzh/Desktop/cour/parallel/RankOutput"
@@ -36,11 +38,11 @@ standalone:
 .PHONY:awsrun
 awsrun:
 	aws emr create-cluster \
-		--name "Wiki Spark Cluster" \
+		--name "numTrees=15 maxDepth=15  10 m4large" \
 		--release-label ${aws.release.label} \
 		--instance-groups '[{"InstanceCount":${aws.num.nodes},"InstanceGroupType":"CORE","InstanceType":"${aws.instance.type}"},{"InstanceCount":1,"InstanceGroupType":"MASTER","InstanceType":"${aws.instance.type}"}]' \
 	    --applications Name=Hadoop Name=Spark \
-		--steps Type=CUSTOM_JAR,Name="${app.name}",Jar="command-runner.jar",ActionOnFailure=TERMINATE_CLUSTER,Args=["spark-submit","--deploy-mode","cluster","--class","${job.name}","s3://${aws.bucket.name}/${awsJar}","s3://${aws.bucket.name}/${aws.inputTrain}","s3://${aws.bucket.name}/${aws.inputTest}","s3://${aws.bucket.name}/${aws.output}","s3://${aws.bucket.name}/${aws.model}","${num.iter}","${k}"] \
+		--steps Type=CUSTOM_JAR,Name="${app.name}",Jar="command-runner.jar",ActionOnFailure=TERMINATE_CLUSTER,Args=["spark-submit","--deploy-mode","cluster","--class","${job.name}","s3://${aws.bucket.name}/${awsJar}","s3://${aws.bucket.name}/${aws.inputTrain}","s3://${aws.bucket.name}/${aws.inputTest}","${numTrees}","${maxDepth}"] \
 		--log-uri s3://${aws.bucket.name}/${aws.log.dir} \
 		--use-default-roles \
 		--ec2-attributes SubnetId=subnet-520b7f0f \
