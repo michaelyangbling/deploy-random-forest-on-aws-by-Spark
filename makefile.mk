@@ -8,17 +8,17 @@ job.name=TestScala
 local.master=local[4]
 app.name=brain
 jar.name=/Users/yzh/IdeaProjects/mlSpark/target/scala-2.11/spark_2.11-0.1.jar
-pArgs="/Users/yzh/Desktop/cour/parallel/brain/files/sample1.csv copy.bz2" "/Users/yzh/Desktop/cour/parallel/brain/sample5.bz2" "/Users/yzh/Desktop/cour/parallel/brain/output2"
+pArgs="/Users/yzh/Desktop/cour/parallel/brain/files/sample1.csv copy.bz2" "/Users/yzh/Desktop/cour/parallel/brain/sample5.bz2" "/Users/yzh/Desktop/cour/parallel/brain/output3"
 
 awsJar=spark_2.11-0.1.jar
 aws.inputTrain=train
 aws.inputTest=test
-aws.output=outputbrain
+aws.output=outputbrain3
 aws.bucket.name=michaelyangcs
 aws.release.label=emr-5.11.1
 aws.instance.type=m4.large
-aws.num.nodes=19
-aws.log.dir=logBrain2
+aws.num.nodes=15
+aws.log.dir=logBrain4
 
 awsoutput="s3://michaelyangcs/workFold/output10"
 localout="/Users/yzh/Desktop/cour/parallel/RankOutput"

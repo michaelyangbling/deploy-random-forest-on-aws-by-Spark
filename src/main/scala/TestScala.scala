@@ -9,6 +9,7 @@ import org.apache.spark.mllib.tree.RandomForest
 import org.apache.spark.mllib.tree.model.RandomForestModel
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.sql.SparkSession
+import org.dmg.pmml.True
 
 import scala.util.Try
 //this method store graph and PageRanksas rdd,
@@ -40,19 +41,30 @@ object TestScala {
         }
       }
     }
-    def
-
-    val TrainingData = train.map { line =>
-      val parts = line.split(',').map(_.toDouble)
-      LabeledPoint(parts.last.toInt, Vectors.dense(parts.init)
-
-
-      )
+    def filterData(in:Array[LabeledPoint]):Boolean={
+      if (in.length!=0)
+        true
+      else {
+        false
+      }
     }
-    val TestingData = test.map { line =>
-      val parts = line.split(',').init.map(_.toDouble)
-      LabeledPoint(1, Vectors.dense(parts))
+
+    val TrainingData = train.map (cleanData).filter(filterData).map(line=>line(0))
+
+
+    def cleanData2(line:String): Array[LabeledPoint] = {
+      try {
+        val parts = line.split(',').map(_.toDouble)
+        Array(LabeledPoint(1, Vectors.dense(parts.init)))
+      }
+      catch{
+        case _: Throwable => {
+          Array()
+        }
+      }
     }
+    val TestingData = test.map(cleanData2)
+
 
 
     //      val spark: SparkSession = SparkSession.builder.master("local").getOrCreate
@@ -66,12 +78,20 @@ object TestScala {
     val maxDepth = 4
     val maxBins = 32
     val model = RandomForest.trainClassifier(TrainingData, numClasses, categoricalFeaturesInfo, numTrees, featureSubsetStrategy, impurity, maxDepth, maxBins)
-
-    val Preds = TestingData.map { point =>
-      val prediction = model.predict(point.features)
-      prediction.toInt
+    def predict(point:Array[LabeledPoint]):Int={
+      if (point.length!=0){
+        val prediction = model.predict(point(0).features)
+        prediction.toInt}
+      else
+        0
     }
+    val Preds = TestingData.map(predict)
+    Preds.persist()
     Preds.coalesce(1).saveAsTextFile(args(2))
+    println("num of 1 predicted")
+    println(Preds.collect().sum.toDouble)
+    println("num of test records")
+    println(Preds.count.toDouble)
 //    val testErr = labelAndPreds.filter(r => r._1 != r._2).count.toDouble / TestingData.count()
 //    println("Test Error = " + testErr)
 //    println("Learned classification forest model:\n" + model.toDebugString)
