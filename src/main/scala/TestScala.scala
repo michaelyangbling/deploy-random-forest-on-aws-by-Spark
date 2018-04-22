@@ -84,7 +84,7 @@ object TestScala {
     def predict(point:LabeledPoint):Int={
       if (point.label==1){ //indicating right format
         val prediction = model.predict(point.features)
-        prediction.toInt}
+        prediction.toInt}//
       else
         0
     }
