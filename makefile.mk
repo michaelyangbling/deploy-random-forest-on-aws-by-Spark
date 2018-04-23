@@ -17,11 +17,11 @@ aws.output=outputNo
 aws.bucket.name=michaelyangcs
 aws.release.label=emr-5.11.1
 aws.instance.type=m4.xlarge
-aws.num.nodes=4
-aws.log.dir=logQuickLessMachine
+aws.num.nodes=9
+aws.log.dir=logPerfect
 aws.model=model
-numTrees=13
-maxDepth=7
+numTrees=20
+maxDepth=30
 
 awsoutput="s3://michaelyangcs/workFold/output10"
 localout="/Users/yzh/Desktop/cour/parallel/RankOutput"

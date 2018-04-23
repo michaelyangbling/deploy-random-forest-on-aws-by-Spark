@@ -1,0 +1,7 @@
+
+#for sbt: sbt package
+#for maven: mvn clean package
+#for maven: mvn scala:run -DmainClass=TestScala
+
+#e.x, in order to debug locally, : make -f makefile.mk standalone
+in order to run in distributed cloud: make -f makefile.mk awsrun
